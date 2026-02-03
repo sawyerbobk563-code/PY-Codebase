@@ -1,1 +1,62 @@
+import os
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+from google.colab import drive
 
+# 1. Mount Google Drive
+drive.mount('/content/drive')
+
+def download_images_to_drive(url, folder_name="Web_Images"):
+    # 2. Define the path inside your Google Drive
+    # 'My Drive' is the default root folder in Google Drive
+    drive_path = f"/content/drive/MyDrive/{folder_name}"
+    
+    if not os.path.exists(drive_path):
+        os.makedirs(drive_path)
+        print(f"Created new folder in Drive: {drive_path}")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        img_tags = soup.find_all('img')
+        print(f"Found {len(img_tags)} images. Saving to Google Drive...")
+
+        count = 0
+        for img in img_tags:
+            img_url = img.get('src')
+            if not img_url:
+                continue
+
+            img_url = urljoin(url, img_url)
+            filename = os.path.basename(urlparse(img_url).path)
+            
+            if not filename or "." not in filename:
+                filename = f"image_{count}.jpg"
+            
+            filename = filename.split('?')[0]
+            
+            try:
+                img_data = requests.get(img_url, headers=headers, timeout=10).content
+                file_path = os.path.join(drive_path, filename)
+                
+                with open(file_path, 'wb') as f:
+                    f.write(img_data)
+                count += 1
+            except Exception:
+                continue # Skip images that fail to download
+
+        print(f"\nSuccess! {count} images saved to 'My Drive/{folder_name}'")
+
+    except Exception as e:
+        print(f"Error: {e}")
+
+# Run the script
+target_url = input("Enter the URL to scrape: ")
+download_images_to_drive(target_url)
